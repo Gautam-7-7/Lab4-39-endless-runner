@@ -1,6 +1,7 @@
 import pygame
 from .player import Player
 from .obstacle import Obstacle
+from game import obstacle
 
 # Game Engine
 
@@ -17,9 +18,9 @@ class GameEngine:
         self.player = Player(80, self.ground_y)
 
         self.speed = 6
-        # NOTE: speed keeps climbing every frame with no ceiling. See
-        # Task 1 in the README for why that eventually breaks collision.
+        self.max_speed = 12
         self.speed_increase_per_frame = 0.003
+        
 
         self.spawn_interval = 70  # frames between obstacle spawns
         self._spawn_timer = 0
@@ -43,7 +44,9 @@ class GameEngine:
         if self.game_over:
             return
 
-        self.speed += self.speed_increase_per_frame
+        self.speed = min(
+        self.speed + self.speed_increase_per_frame,
+        self.max_speed)
         self.player.update()
 
         self._spawn_timer += 1
@@ -52,20 +55,22 @@ class GameEngine:
             self.obstacles.append(Obstacle(self.width, self.ground_y, self.speed))
 
         for obstacle in self.obstacles:
+            previous_x = obstacle.x
             obstacle.move()
             obstacle.speed = self.speed
 
-        # NOTE: collision is only checked against each obstacle's rect
-        # *after* it has already moved for the frame. There's no check
-        # for whether the obstacle's path crossed the player along the
-        # way. Since self.speed has no cap, it eventually grows large
-        # enough that an obstacle can cover more horizontal distance
-        # in one frame than the player's own width - meaning it can be
-        # entirely to the right of the player on one frame and entirely
-        # to the left on the next, skipping the player's hitbox
-        # completely and never registering a hit. See Task 1.
-        for obstacle in self.obstacles:
-            if obstacle.rect().colliderect(self.player.rect()):
+    # Check the entire horizontal path travelled this frame.
+            swept_x = min(previous_x, obstacle.x)
+            swept_width = obstacle.width + abs(previous_x - obstacle.x)
+
+            swept_rect = pygame.Rect(
+                swept_x,
+                obstacle.y,
+                swept_width,
+                obstacle.height
+            )
+
+            if swept_rect.colliderect(self.player.rect()):
                 self.game_over = True
                 return
 
